@@ -74,6 +74,8 @@ namespace libtorrent {
 		// flush the metadata
 		void flush_metadata(error_code& ec);
 
+		void release_file();
+
 	private:
 
 		void open_file(open_mode_t mode, error_code& ec);

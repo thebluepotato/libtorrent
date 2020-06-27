@@ -477,6 +477,7 @@ namespace libtorrent {
 		{
 			error_code ignore;
 			m_part_file->flush_metadata(ignore);
+			m_part_file->release_file();
 		}
 
 		// make sure we don't have the files open

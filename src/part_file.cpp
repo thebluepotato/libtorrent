@@ -355,6 +355,12 @@ namespace libtorrent {
 		flush_metadata_impl(ec);
 	}
 
+	void part_file::release_file()
+	{
+		std::lock_guard<std::mutex> l(m_mutex);
+		m_file.reset();
+	}
+
 	// TODO: instead of rebuilding the whole file header
 	// and flushing it, update the slot entries as we go
 	void part_file::flush_metadata_impl(error_code& ec)
