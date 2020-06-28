@@ -507,12 +507,54 @@ namespace libtorrent { namespace aux {
 		}
 #endif // TORRENT_DISABLE_MUTABLE_TORRENTS
 
-		bool const seed = rd.have_pieces.all_set()
-			&& rd.have_pieces.size() >= fs.num_pieces();
+		bool const seed = (rd.have_pieces.all_set()
+			&& rd.have_pieces.size() >= fs.num_pieces())
+			|| (rd.flags & torrent_flags::seed_mode);
+
+		if (seed)
+		{
+			for (file_index_t const file_index : fs.file_range())
+			{
+				if (fs.pad_file_at(file_index)) continue;
+
+				error_code error;
+				std::int64_t const size = stat.get_filesize(file_index
+					, fs, save_path, error);
+
+				if (size < 0)
+				{
+					if (error != boost::system::errc::no_such_file_or_directory)
+					{
+						ec.ec = error;
+						ec.file(file_index);
+						ec.operation = operation_t::file_stat;
+						return false;
+					}
+					else
+					{
+						ec.ec = errors::mismatching_file_size;
+						ec.file(file_index);
+						ec.operation = operation_t::file_stat;
+						return false;
+					}
+				}
+
+				if (size != fs.file_size(file_index))
+				{
+					// the resume data indicates we're a seed, but this file has
+					// the wrong size. Reject the resume data
+					ec.ec = errors::mismatching_file_size;
+					ec.file(file_index);
+					ec.operation = operation_t::check_resume;
+					return false;
+				}
+			}
+			return true;
+		}
 
 		// parse have bitmask. Verify that the files we expect to have
 		// actually do exist
-		for (piece_index_t i(0); i < piece_index_t(rd.have_pieces.size()); ++i)
+		for (piece_index_t i(0); i < rd.have_pieces.end_index(); ++i)
 		{
 			if (rd.have_pieces.get_bit(i) == false) continue;
 
@@ -527,6 +569,8 @@ namespace libtorrent { namespace aux {
 			if (file_index < file_priority.end_index()
 				&& file_priority[file_index] == dont_download)
 				continue;
+
+			if (fs.pad_file_at(file_index)) continue;
 
 			error_code error;
 			std::int64_t const size = stat.get_filesize(f[0].file_index

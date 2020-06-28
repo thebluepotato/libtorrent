@@ -1094,6 +1094,7 @@ namespace test_mode {
 #if TORRENT_ABI_VERSION == 1
 	constexpr test_mode_t deprecated = 4_bit;
 #endif
+	constexpr test_mode_t missing_files = 5_bit;
 }
 
 namespace {
@@ -1105,6 +1106,12 @@ void test_seed_mode(test_mode_t const flags)
 	add_torrent_params p;
 	p.ti = ti;
 	p.save_path = ".";
+
+	if (flags & test_mode::missing_files)
+	{
+		lt::error_code ec;
+		TEST_CHECK(::remove("./test_resume/tmp2") == 0);
+	}
 
 	entry rd;
 
@@ -1165,6 +1172,7 @@ void test_seed_mode(test_mode_t const flags)
 
 	if (flags & (test_mode::file_prio
 		| test_mode::piece_prio
+		| test_mode::missing_files
 		| test_mode::pieces_have))
 	{
 		std::vector<alert*> alerts;
@@ -1237,6 +1245,11 @@ TORRENT_TEST(seed_mode_preserve_deprecated)
 {
 	test_seed_mode(test_mode::deprecated);
 }
+
+TORRENT_TEST(seed_mode_missing_files_deprecated)
+{
+	test_seed_mode(test_mode::missing_files | test_mode::deprecated);
+}
 #endif
 
 TORRENT_TEST(seed_mode_file_prio)
@@ -1257,6 +1270,11 @@ TORRENT_TEST(seed_mode_piece_have)
 TORRENT_TEST(seed_mode_preserve)
 {
 	test_seed_mode(test_mode_t{});
+}
+
+TORRENT_TEST(seed_mode_missing_files)
+{
+	test_seed_mode(test_mode::missing_files);
 }
 
 TORRENT_TEST(seed_mode_load_peers)

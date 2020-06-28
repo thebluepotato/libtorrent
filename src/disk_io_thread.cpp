@@ -2582,7 +2582,8 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		// the error message indicates that the fast resume data was rejected
 		// if 'fatal_disk_error' is returned, the error message indicates what
 		// when wrong in the disk access
-		if ((rd->have_pieces.empty() || !verify_success)
+		if (((!(rd->flags & torrent_flags::seed_mode)
+			&& rd->have_pieces.empty()) || !verify_success)
 			&& !m_settings.get_bool(settings_pack::no_recheck_incomplete_resume))
 		{
 			// j->error may have been set at this point, by verify_resume_data()
