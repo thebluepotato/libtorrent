@@ -132,12 +132,22 @@ namespace libtorrent { namespace aux {
 #endif
 		l.lock();
 		auto& key_view2 = m_files.get<0>();
-		auto it = key_view2.insert(std::move(e));
+		// there's an edge case where two threads are racing to insert a newly
+		// opened file, one thread is opening a file for writing and the other
+		// fore reading. If the reading thread wins, it's important that the
+		// thread opening for writing actually uses its own file, rather than
+		// the one in the cache (since it's about to write to it). So, we can't
+		// move e in here, and we have to return e unconditionally of whether we
+		// won the race or not.
+		// Technically, we could move e and return the file from the cache if
+		// this is the thread that's opening the file for reading, but that
+		// seems unnecessarily complex
+		auto it = key_view2.insert(e);
 // TODO: (it.seond == false) should probably be counted/reported, to make sure it
 // doesn't happen too often
 		auto f = it.first->mapping;
 		l.unlock();
-		return f->view();
+		return e.mapping->view();
 	}
 
 	file_open_mode_t to_file_open_mode(open_mode_t const mode)
