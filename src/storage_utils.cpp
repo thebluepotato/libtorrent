@@ -461,6 +461,32 @@ namespace libtorrent { namespace aux {
 		}
 	}
 
+namespace {
+
+std::int64_t get_filesize(stat_cache& stat, file_index_t const file_index
+	, file_storage const& fs, std::string const& save_path, storage_error& ec)
+{
+	error_code error;
+	std::int64_t const size = stat.get_filesize(file_index, fs, save_path, error);
+
+	if (size >= 0) return size;
+	if (error != boost::system::errc::no_such_file_or_directory)
+	{
+		ec.ec = error;
+		ec.file(file_index);
+		ec.operation = operation_t::file_stat;
+	}
+	else
+	{
+		ec.ec = errors::mismatching_file_size;
+		ec.file(file_index);
+		ec.operation = operation_t::file_stat;
+	}
+	return -1;
+}
+
+}
+
 	bool verify_resume_data(add_torrent_params const& rd
 		, aux::vector<std::string, file_index_t> const& links
 		, file_storage const& fs
@@ -507,8 +533,8 @@ namespace libtorrent { namespace aux {
 		}
 #endif // TORRENT_DISABLE_MUTABLE_TORRENTS
 
-		bool const seed = (rd.have_pieces.all_set()
-			&& rd.have_pieces.size() >= fs.num_pieces())
+		bool const seed = (rd.have_pieces.size() >= fs.num_pieces()
+			&& rd.have_pieces.all_set())
 			|| (rd.flags & torrent_flags::seed_mode);
 
 		if (seed)
@@ -517,32 +543,12 @@ namespace libtorrent { namespace aux {
 			{
 				if (fs.pad_file_at(file_index)) continue;
 
-				error_code error;
-				std::int64_t const size = stat.get_filesize(file_index
-					, fs, save_path, error);
-
-				if (size < 0)
-				{
-					if (error != boost::system::errc::no_such_file_or_directory)
-					{
-						ec.ec = error;
-						ec.file(file_index);
-						ec.operation = operation_t::file_stat;
-						return false;
-					}
-					else
-					{
-						ec.ec = errors::mismatching_file_size;
-						ec.file(file_index);
-						ec.operation = operation_t::file_stat;
-						return false;
-					}
-				}
+				std::int64_t const size = get_filesize(stat, file_index, fs
+					, save_path, ec);
+				if (size < 0) return false;
 
 				if (size != fs.file_size(file_index))
 				{
-					// the resume data indicates we're a seed, but this file has
-					// the wrong size. Reject the resume data
 					ec.ec = errors::mismatching_file_size;
 					ec.file(file_index);
 					ec.operation = operation_t::check_resume;
@@ -572,37 +578,8 @@ namespace libtorrent { namespace aux {
 
 			if (fs.pad_file_at(file_index)) continue;
 
-			error_code error;
-			std::int64_t const size = stat.get_filesize(f[0].file_index
-				, fs, save_path, error);
-
-			if (size < 0)
-			{
-				if (error != boost::system::errc::no_such_file_or_directory)
-				{
-					ec.ec = error;
-					ec.file(file_index);
-					ec.operation = operation_t::file_stat;
-					return false;
-				}
-				else
-				{
-					ec.ec = errors::mismatching_file_size;
-					ec.file(file_index);
-					ec.operation = operation_t::file_stat;
-					return false;
-				}
-			}
-
-			if (seed && size != fs.file_size(file_index))
-			{
-				// the resume data indicates we're a seed, but this file has
-				// the wrong size. Reject the resume data
-				ec.ec = errors::mismatching_file_size;
-				ec.file(file_index);
-				ec.operation = operation_t::check_resume;
+			if (get_filesize(stat, file_index, fs, save_path, ec) < 0)
 				return false;
-			}
 
 			// OK, this file existed, good. Now, skip all remaining pieces in
 			// this file. We're just sanity-checking whether the files exist

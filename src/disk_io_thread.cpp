@@ -2577,13 +2577,18 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		bool const verify_success = j->storage->verify_resume_data(*rd
 			, links ? *links : aux::vector<std::string, file_index_t>(), j->error);
 
+		bool const seed_mode(rd->flags & torrent_flags::seed_mode);
+
+		// if the seed mode flag is not set, and the piece vector is empty, it
+		// suggests we're starting without any resume data
+		bool const no_resume_data = !seed_mode && rd->have_pieces.empty();
+
 		// if we don't have any resume data, return
 		// or if error is set and return value is 'no_error' or 'need_full_check'
 		// the error message indicates that the fast resume data was rejected
 		// if 'fatal_disk_error' is returned, the error message indicates what
 		// when wrong in the disk access
-		if (((!(rd->flags & torrent_flags::seed_mode)
-			&& rd->have_pieces.empty()) || !verify_success)
+		if ((no_resume_data || !verify_success)
 			&& !m_settings.get_bool(settings_pack::no_recheck_incomplete_resume))
 		{
 			// j->error may have been set at this point, by verify_resume_data()
