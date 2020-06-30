@@ -90,15 +90,7 @@ namespace aux {
 
 		std::array<std::string, settings_pack::num_string_settings> m_strings;
 		std::array<int, settings_pack::num_int_settings> m_ints;
-#if defined _MSC_VER && _MSC_VER <= 1910
-		// it seems MSVC gets confused and picks the constexpr overload of
-		// operator[] on std::bitset, when *writing* to it. It may be something
-		// else, it started happening when initializing the default settings
-		// arrays (in settings_pack.cpp) as constexpr.
-		std::array<bool, settings_pack::num_bool_settings> m_bools;
-#else
 		std::bitset<settings_pack::num_bool_settings> m_bools;
-#endif
 	};
 
 	struct TORRENT_EXTRA_EXPORT session_settings final : settings_interface
