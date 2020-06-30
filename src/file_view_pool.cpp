@@ -68,39 +68,25 @@ namespace libtorrent { namespace aux {
 		// this member to be destructed after we release the std::mutex. On some
 		// operating systems (such as OSX) closing a file may take a long
 		// time. We don't want to hold the std::mutex for that.
-		std::shared_ptr<file_mapping> defer_destruction;
+		std::shared_ptr<file_mapping> defer_destruction1;
+		std::shared_ptr<file_mapping> defer_destruction2;
 
 		std::unique_lock<std::mutex> l(m_mutex);
 
 		TORRENT_ASSERT(is_complete(p));
 		auto& key_view = m_files.get<0>();
-		auto const i = key_view.find(file_id{st, file_index});
-		if (i != key_view.end())
+		auto i = key_view.find(file_id{st, file_index});
+
+		// make sure the write bit is set if we asked for it
+		// it's OK to use a read-write file if we just asked for read. But if
+		// we asked for write, the file we serve back must be opened in write
+		// mode
+		if (i != key_view.end()
+			&& (!(m & open_mode::write) || (i->mode & open_mode::write)))
 		{
 			key_view.modify(i, [&](file_entry& e)
 			{
 				e.last_use = aux::time_now();
-
-				// make sure the write bit is set if we asked for it
-				// it's OK to use a read-write file if we just asked for read. But if
-				// we asked for write, the file we serve back must be opened in write
-				// mode
-				if (!(e.mode & open_mode::write) && (m & open_mode::write))
-				{
-#if TORRENT_HAVE_MAP_VIEW_OF_FILE
-					std::unique_lock<std::mutex> lou(*open_unmap_lock);
-#endif
-					defer_destruction = std::move(e.mapping);
-					e.mapping = std::make_shared<file_mapping>(
-						file_handle(fs.file_path(file_index, p)
-							, fs.file_size(file_index), m), m
-						, fs.file_size(file_index)
-#if TORRENT_HAVE_MAP_VIEW_OF_FILE
-						, open_unmap_lock
-#endif
-						);
-					e.mode = m;
-				}
 			});
 
 			auto& lru_view = m_files.get<1>();
@@ -113,7 +99,7 @@ namespace libtorrent { namespace aux {
 		{
 			// the file cache is at its maximum size, close
 			// the least recently used file
-			defer_destruction = remove_oldest(l);
+			defer_destruction1 = remove_oldest(l);
 		}
 
 		l.unlock();
@@ -131,23 +117,41 @@ namespace libtorrent { namespace aux {
 		lou.unlock();
 #endif
 		l.lock();
-		auto& key_view2 = m_files.get<0>();
+
 		// there's an edge case where two threads are racing to insert a newly
 		// opened file, one thread is opening a file for writing and the other
 		// fore reading. If the reading thread wins, it's important that the
-		// thread opening for writing actually uses its own file, rather than
-		// the one in the cache (since it's about to write to it). So, we can't
-		// move e in here, and we have to return e unconditionally of whether we
-		// won the race or not.
-		// Technically, we could move e and return the file from the cache if
-		// this is the thread that's opening the file for reading, but that
-		// seems unnecessarily complex
-		auto it = key_view2.insert(e);
-// TODO: (it.seond == false) should probably be counted/reported, to make sure it
-// doesn't happen too often
-		auto f = it.first->mapping;
+		// thread opening for writing still overwrites the file in the pool,
+		// since a file opened for reading and writing can be used for both.
+		// So, we can't move e in here, and we have to return e unconditionally
+		// of whether we won the race or not. Technically, we could move e and
+		// return the file from the cache if this is the thread that's opening
+		// the file for reading, but that seems unnecessarily complex
+		bool added;
+		std::tie(i, added) = key_view.insert(e);
+		if (added == false)
+		{
+			// this is the case where this file was already in the pool. Make
+			// sure we can use it. If we asked for write mode, it must have been
+			// opened in write mode too.
+			TORRENT_ASSERT(i != key_view.end());
+
+			if ((m & open_mode::write) && !(i->mode & open_mode::write))
+			{
+				key_view.modify(i, [&](file_entry& fe)
+				{
+					defer_destruction2 = std::move(fe.mapping);
+					fe = std::move(e);
+				});
+			}
+
+			auto& lru_view = m_files.get<1>();
+			lru_view.relocate(m_files.project<1>(i), lru_view.begin());
+		}
+
+		auto f = i->mapping;
 		l.unlock();
-		return e.mapping->view();
+		return f->view();
 	}
 
 	file_open_mode_t to_file_open_mode(open_mode_t const mode)
