@@ -149,9 +149,7 @@ namespace libtorrent { namespace aux {
 			lru_view.relocate(m_files.project<1>(i), lru_view.begin());
 		}
 
-		auto f = i->mapping;
-		l.unlock();
-		return f->view();
+		return i->mapping->view();
 	}
 
 	file_open_mode_t to_file_open_mode(open_mode_t const mode)
