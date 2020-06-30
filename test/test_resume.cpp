@@ -1095,6 +1095,7 @@ namespace test_mode {
 	constexpr test_mode_t deprecated = 4_bit;
 #endif
 	constexpr test_mode_t missing_files = 5_bit;
+	constexpr test_mode_t pieces_have_all = 6_bit;
 }
 
 namespace {
@@ -1139,6 +1140,11 @@ void test_seed_mode(test_mode_t const flags)
 		std::string pieces(std::size_t(ti->num_pieces()), '\x01');
 		pieces[0] = '\0';
 		rd["pieces"] = pieces;
+	}
+
+	if (flags & test_mode::pieces_have_all)
+	{
+		rd["pieces"] = std::string(std::size_t(ti->num_pieces()), '\x01');
 	}
 
 	if (flags & test_mode::piece_prio)
@@ -1250,6 +1256,16 @@ TORRENT_TEST(seed_mode_missing_files_deprecated)
 {
 	test_seed_mode(test_mode::missing_files | test_mode::deprecated);
 }
+
+TORRENT_TEST(seed_mode_missing_files_with_pieces_deprecated)
+{
+	test_seed_mode(test_mode::missing_files | test_mode::pieces_have | test_mode::deprecated);
+}
+
+TORRENT_TEST(seed_mode_missing_files_with_all_pieces_deprecated)
+{
+	test_seed_mode(test_mode::missing_files | test_mode::pieces_have_all | test_mode::deprecated);
+}
 #endif
 
 TORRENT_TEST(seed_mode_file_prio)
@@ -1275,6 +1291,16 @@ TORRENT_TEST(seed_mode_preserve)
 TORRENT_TEST(seed_mode_missing_files)
 {
 	test_seed_mode(test_mode::missing_files);
+}
+
+TORRENT_TEST(seed_mode_missing_files_with_pieces)
+{
+	test_seed_mode(test_mode::missing_files | test_mode::pieces_have);
+}
+
+TORRENT_TEST(seed_mode_missing_files_with_all_pieces)
+{
+	test_seed_mode(test_mode::missing_files | test_mode::pieces_have_all);
 }
 
 TORRENT_TEST(seed_mode_load_peers)
