@@ -106,11 +106,11 @@ namespace libtorrent {
 #define DEPRECATED_SET_STR(name, default_value, fun) { "", nullptr, nullptr }
 #endif
 
-#if !defined _MSC_VER || _MSC_VER > 1910
+//#if !defined _MSC_VER || _MSC_VER > 1910
 #define CONSTEXPR_SETTINGS constexpr
-#else
-#define CONSTEXPR_SETTINGS
-#endif
+//#else
+//#define CONSTEXPR_SETTINGS
+//#endif
 
 	namespace {
 
