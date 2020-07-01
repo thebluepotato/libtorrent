@@ -1196,6 +1196,11 @@ void test_seed_mode(test_mode_t const flags)
 					TEST_CHECK(sca->state != torrent_status::seeding);
 					if (sca->state == torrent_status::downloading) done = true;
 				}
+				else if (alert_cast<torrent_finished_alert>(a))
+				{
+					// the torrent is not finished!
+					TEST_CHECK(false);
+				}
 			}
 			if (lt::clock_type::now() - start_time > seconds(5)) break;
 		}
@@ -1207,8 +1212,9 @@ void test_seed_mode(test_mode_t const flags)
 	{
 		std::vector<alert*> alerts;
 		bool done = false;
+		bool finished = false;
 		auto const start_time = lt::clock_type::now();
-		while (!done)
+		while (!done || !finished)
 		{
 			ses.wait_for_alert(seconds(1));
 			ses.pop_alerts(&alerts);
@@ -1220,10 +1226,15 @@ void test_seed_mode(test_mode_t const flags)
 					TEST_CHECK(sca->state != torrent_status::checking_files);
 					if (sca->state == torrent_status::seeding) done = true;
 				}
+				else if (alert_cast<torrent_finished_alert>(a))
+				{
+					finished = true;
+				}
 			}
 			if (lt::clock_type::now() - start_time > seconds(5)) break;
 		}
 		TEST_CHECK(done);
+		TEST_CHECK(finished);
 		torrent_status const s = h.status();
 		TEST_CHECK(s.flags & torrent_flags::seed_mode);
 	}
